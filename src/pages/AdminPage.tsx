@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -57,6 +57,7 @@ import {
 } from '@/components/ui/tooltip'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useSocket } from '../hooks/useSocket'
 import { ButtonCell } from '../components/ButtonCell'
 import { HotkeyInput } from '../components/HotkeyInput'
@@ -97,6 +98,21 @@ const SYSTEM_HOTKEYS: SystemHotkey[] = [
 const GRID_COLS = [3, 4, 5, 6]
 const GRID_ROWS = [2, 3, 4, 5]
 const PAGES_KEY = 'dumbdeck:pages'
+const GRID_KEY = 'dumbdeck:grid'
+
+interface GridConfig { cols: number; rows: number; gap: number }
+
+function loadGrid(): GridConfig | null {
+  try {
+    const raw = localStorage.getItem(GRID_KEY)
+    if (raw) return JSON.parse(raw) as GridConfig
+  } catch { /* ignore */ }
+  return null
+}
+
+function persistGrid(grid: GridConfig) {
+  localStorage.setItem(GRID_KEY, JSON.stringify(grid))
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -208,9 +224,11 @@ export function AdminPage() {
   const [dirty, setDirty] = useState(false)
   const [saveState, setSaveState] = useState<SaveState>('idle')
 
-  // Grid size
-  const [cols, setCols] = useState(4)
-  const [rows, setRows] = useState(3)
+  // Grid size & gap — initialized from localStorage for instant values on refresh
+  const [cols, setCols] = useState<number>(() => loadGrid()?.cols ?? 4)
+  const [rows, setRows] = useState<number>(() => loadGrid()?.rows ?? 3)
+  const [gap, setGap] = useState<number>(() => loadGrid()?.gap ?? 12)
+  const [gridReady, setGridReady] = useState<boolean>(() => loadGrid() !== null)
   const totalCells = cols * rows
 
   // Selection & rename
@@ -220,6 +238,9 @@ export function AdminPage() {
 
   // Active drag
   const [draggingId, setDraggingId] = useState<string | null>(null)
+
+  // Track whether grid was already initialized from server config
+  const gridInitialized = useRef(false)
 
   // ── Bootstrap: load from localStorage, fallback to server config ───────────
 
@@ -232,15 +253,26 @@ export function AdminPage() {
   }, [])
 
   useEffect(() => {
-    if (config && pages.length === 0) {
-      const page: Page = {
-        id: crypto.randomUUID(),
-        name: 'Default',
-        buttons: config.buttons,
-        order: Object.keys(config.buttons),
+    if (config) {
+      if (config.grid && !gridInitialized.current) {
+        const g = { cols: config.grid.cols, rows: config.grid.rows, gap: config.grid.gap ?? 12 }
+        setCols(g.cols)
+        setRows(g.rows)
+        setGap(g.gap)
+        persistGrid(g)
+        gridInitialized.current = true
       }
-      setPages([page])
-      setActivePageId(page.id)
+      setGridReady(true)
+      if (pages.length === 0) {
+        const page: Page = {
+          id: crypto.randomUUID(),
+          name: 'Default',
+          buttons: config.buttons,
+          order: Object.keys(config.buttons),
+        }
+        setPages([page])
+        setActivePageId(page.id)
+      }
     }
   }, [config, pages.length])
 
@@ -394,14 +426,14 @@ export function AdminPage() {
       if (localButtons[id]) orderedButtons[id] = localButtons[id]
     }
     setSaveState('saving')
-    updateAllButtons(orderedButtons)
+    updateAllButtons(orderedButtons, { cols, rows, gap })
     flushToPages()
     setTimeout(() => {
       setSaveState('saved')
       setDirty(false)
       setTimeout(() => setSaveState('idle'), 2500)
     }, 400)
-  }, [order, localButtons, updateAllButtons, flushToPages])
+  }, [order, localButtons, updateAllButtons, flushToPages, cols, rows, gap])
 
   // ── Page management ────────────────────────────────────────────────────────
 
@@ -584,7 +616,7 @@ export function AdminPage() {
               <div className="flex items-center gap-3 px-4 py-2 border-b border-border shrink-0">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">Cols</span>
-                  <Select value={String(cols)} onValueChange={(v) => setCols(Number(v))}>
+                  <Select value={String(cols)} onValueChange={(v) => { const n = Number(v); setCols(n); persistGrid({ cols: n, rows, gap }); setDirty(true) }}>
                     <SelectTrigger className="h-7 w-14 text-xs">
                       <SelectValue />
                     </SelectTrigger>
@@ -599,7 +631,7 @@ export function AdminPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">Rows</span>
-                  <Select value={String(rows)} onValueChange={(v) => setRows(Number(v))}>
+                  <Select value={String(rows)} onValueChange={(v) => { const n = Number(v); setRows(n); persistGrid({ cols, rows: n, gap }); setDirty(true) }}>
                     <SelectTrigger className="h-7 w-14 text-xs">
                       <SelectValue />
                     </SelectTrigger>
@@ -611,6 +643,26 @@ export function AdminPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <Separator orientation="vertical" className="h-5" />
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Gap</span>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={64}
+                      value={gap}
+                      onChange={(e) => {
+                        const n = Math.min(64, Math.max(0, Number(e.target.value) || 0))
+                        setGap(n)
+                        persistGrid({ cols, rows, gap: n })
+                        setDirty(true)
+                      }}
+                      className="h-7 w-16 text-xs px-2"
+                    />
+                    <span className="text-xs text-muted-foreground">px</span>
+                  </div>
                 </div>
                 <div className="flex-1" />
                 {dirty && (
@@ -641,10 +693,21 @@ export function AdminPage() {
 
               {/* Grid */}
               <div className="flex-1 overflow-auto p-4">
+                {!gridReady && (
+                  <div
+                    className="grid"
+                    style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: `${gap}px` }}
+                  >
+                    {Array.from({ length: totalCells }).map((_, i) => (
+                      <Skeleton key={i} className="aspect-square rounded-2xl" />
+                    ))}
+                  </div>
+                )}
+                {gridReady && (
                 <SortableContext items={order} strategy={rectSortingStrategy}>
                   <div
-                    className="grid gap-3"
-                    style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+                    className="grid"
+                    style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: `${gap}px` }}
                   >
                     {Array.from({ length: totalCells }).map((_, cellIndex) => {
                       const buttonId = order[cellIndex]
@@ -673,6 +736,7 @@ export function AdminPage() {
                     })}
                   </div>
                 </SortableContext>
+                )}
               </div>
             </main>
 

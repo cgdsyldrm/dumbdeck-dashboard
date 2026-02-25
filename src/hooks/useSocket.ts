@@ -12,7 +12,7 @@ interface UseSocketReturn {
   send: (event: string, data?: Record<string, unknown>) => void
   triggerKey: (buttonId: string) => void
   updateConfig: (payload: { buttonId: string; key: string; label?: string; description?: string }) => void
-  updateAllButtons: (buttons: DeckConfig['buttons']) => void
+  updateAllButtons: (buttons: DeckConfig['buttons'], grid?: { cols: number; rows: number; gap: number }) => void
 }
 
 export function useSocket(role: ClientRole): UseSocketReturn {
@@ -90,8 +90,8 @@ export function useSocket(role: ClientRole): UseSocketReturn {
     send('update_config', payload)
   }, [send])
 
-  const updateAllButtons = useCallback((buttons: DeckConfig['buttons']) => {
-    send('update_config', { buttons })
+  const updateAllButtons = useCallback((buttons: DeckConfig['buttons'], grid?: { cols: number; rows: number; gap: number }) => {
+    send('update_config', { buttons, ...(grid ? { grid } : {}) })
   }, [send])
 
   return { config, status, listenerConnected, send, triggerKey, updateConfig, updateAllButtons }
