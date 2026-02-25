@@ -11,6 +11,11 @@ export interface DeckConfig {
     debounceMs: number
     allowRemoteConfig: boolean
   }
+  grid?: {
+    cols: number
+    rows: number
+    gap: number
+  }
 }
 
 export type WsEvent =
