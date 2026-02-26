@@ -1,10 +1,10 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import type { ClientRole, DeckConfig, WsEvent } from '../types'
-import { resolveWsUrl } from '../lib/hubStore'
+import { resolveWsUrl, getToken, clearHubAddress } from '../lib/hubStore'
 
 export const WS_URL = resolveWsUrl()
 
-export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
+export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'unauthorized'
 
 interface UseSocketReturn {
   config: DeckConfig | null
@@ -41,7 +41,8 @@ export function useSocket(role: ClientRole): UseSocketReturn {
     ws.onopen = () => {
       if (!mountedRef.current) return
       setStatus('connected')
-      ws.send(JSON.stringify({ event: 'join_room', data: { role } }))
+      const token = getToken()
+      ws.send(JSON.stringify({ event: 'join_room', data: { role, ...(token ? { token } : {}) } }))
     }
 
     ws.onmessage = (e) => {
@@ -53,6 +54,11 @@ export function useSocket(role: ClientRole): UseSocketReturn {
         }
         if (msg.event === 'listener_status') {
           setListenerConnected(msg.data.connected)
+        }
+        if (msg.event === 'auth_error') {
+          // Token is wrong — clear saved credentials and reload to show ConnectPage
+          clearHubAddress()
+          window.location.reload()
         }
       } catch {
         // ignore malformed messages

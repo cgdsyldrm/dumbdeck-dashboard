@@ -8,12 +8,14 @@ const labels: Record<ConnectionStatus, string> = {
   connecting: 'Hub Activating…',
   connected: 'Hub Active',
   disconnected: 'Hub Inactive',
+  unauthorized: 'Unauthorized',
 }
 
 const colors: Record<ConnectionStatus, string> = {
   connecting: 'bg-warn animate-pulse',
   connected: 'bg-success',
   disconnected: 'bg-danger animate-pulse',
+  unauthorized: 'bg-danger',
 }
 
 export function StatusDot({ status }: Props) {

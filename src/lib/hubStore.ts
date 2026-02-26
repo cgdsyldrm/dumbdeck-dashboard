@@ -1,4 +1,5 @@
 const HUB_KEY = 'dumbdeck_hub'
+const TOKEN_KEY = 'dumbdeck_token'
 
 export function getHubAddress(): string | null {
   return localStorage.getItem(HUB_KEY)
@@ -10,6 +11,19 @@ export function setHubAddress(host: string): void {
 
 export function clearHubAddress(): void {
   localStorage.removeItem(HUB_KEY)
+  localStorage.removeItem(TOKEN_KEY)
+}
+
+export function getToken(): string {
+  return localStorage.getItem(TOKEN_KEY) ?? ''
+}
+
+export function setToken(token: string): void {
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token)
+  } else {
+    localStorage.removeItem(TOKEN_KEY)
+  }
 }
 
 export function buildWsUrl(host: string): string {

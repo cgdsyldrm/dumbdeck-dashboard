@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
-import { Loader2, Wifi, AlertCircle } from 'lucide-react'
-import { setHubAddress, buildWsUrl } from '../lib/hubStore'
+import { Loader2, Wifi, AlertCircle, Lock } from 'lucide-react'
+import { setHubAddress, setToken, buildWsUrl } from '../lib/hubStore'
 
 interface ConnectPageProps {
   onConnected: () => void
@@ -9,6 +9,7 @@ interface ConnectPageProps {
 export function ConnectPage({ onConnected }: ConnectPageProps) {
   const [ip, setIp] = useState('')
   const [port, setPort] = useState('3000')
+  const [token, setTokenInput] = useState('')
   const [state, setState] = useState<'idle' | 'connecting' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
 
@@ -24,25 +25,50 @@ export function ConnectPage({ onConnected }: ConnectPageProps) {
     setErrorMsg('')
 
     const ws = new WebSocket(buildWsUrl(host))
-    const timeout = setTimeout(() => {
+    let settled = false
+
+    const fail = (msg: string) => {
+      if (settled) return
+      settled = true
       ws.close()
-      setErrorMsg(`Could not reach hub at ${host}. Make sure it's running and on the same network.`)
+      setErrorMsg(msg)
       setState('error')
-    }, 4000)
+    }
+
+    const timeout = setTimeout(() => {
+      fail(`Could not reach hub at ${host}. Make sure it's running and on the same network.`)
+    }, 5000)
 
     ws.onopen = () => {
-      clearTimeout(timeout)
-      ws.close()
-      setHubAddress(host)
-      onConnected()
+      // Probe admin auth: send join_room and wait for room_joined or auth_error
+      ws.send(JSON.stringify({ event: 'join_room', data: { role: 'admin', token: token.trim() } }))
+    }
+
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data as string)
+        if (msg.event === 'room_joined' && msg.data?.role === 'admin') {
+          clearTimeout(timeout)
+          if (settled) return
+          settled = true
+          ws.close()
+          setHubAddress(host)
+          setToken(token.trim())
+          onConnected()
+        } else if (msg.event === 'auth_error') {
+          clearTimeout(timeout)
+          fail('Invalid token. Check the admin token in your hub config.json.')
+        }
+      } catch {
+        // ignore non-JSON messages
+      }
     }
 
     ws.onerror = () => {
       clearTimeout(timeout)
-      setErrorMsg(`Connection refused at ${host}. Check the IP and port.`)
-      setState('error')
+      fail(`Connection refused at ${host}. Check the IP and port.`)
     }
-  }, [ip, port, onConnected])
+  }, [ip, port, token, onConnected])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleConnect()
@@ -106,6 +132,29 @@ export function ConnectPage({ onConnected }: ConnectPageProps) {
                 "
               />
             </div>
+          </div>
+
+          {/* Token */}
+          <div>
+            <label className="block text-xs text-white/50 mb-1.5 font-medium flex items-center gap-1.5">
+              <Lock size={11} />
+              Admin Token
+              <span className="text-white/25 font-normal ml-0.5">(leave blank if not set)</span>
+            </label>
+            <input
+              type="password"
+              value={token}
+              onChange={e => setTokenInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="••••••••"
+              disabled={state === 'connecting'}
+              className="
+                w-full bg-surface-elevated border border-surface-border rounded-xl
+                px-3 py-2.5 text-sm font-mono text-white
+                focus:outline-none focus:border-accent/60
+                disabled:opacity-50 transition-colors
+              "
+            />
           </div>
 
           {/* Error */}

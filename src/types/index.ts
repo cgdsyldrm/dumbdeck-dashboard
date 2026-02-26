@@ -24,6 +24,7 @@ export type WsEvent =
   | { event: 'room_joined'; data: { role: string } }
   | { event: 'trigger_key_ack'; data: { buttonId: string; key: string } }
   | { event: 'error'; data: { message: string } }
+  | { event: 'auth_error'; data: { message: string } }
   | { event: 'listener_status'; data: { connected: boolean } }
 
 export type ClientRole = 'button_ui' | 'admin' | 'desktop'
