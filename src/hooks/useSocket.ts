@@ -1,7 +1,8 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import type { ClientRole, DeckConfig, WsEvent } from '../types'
+import { resolveWsUrl } from '../lib/hubStore'
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:3000'
+export const WS_URL = resolveWsUrl()
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
 

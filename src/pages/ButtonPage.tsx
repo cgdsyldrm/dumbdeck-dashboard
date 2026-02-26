@@ -1,16 +1,26 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Settings, Wifi, WifiOff, Loader2 } from 'lucide-react'
-import { useSocket } from '../hooks/useSocket'
+import { Settings, Wifi, WifiOff, Loader2, Copy, Check } from 'lucide-react'
+import { useSocket, WS_URL } from '../hooks/useSocket'
 import { ButtonTile } from '../components/ButtonTile'
 import { StatusDot } from '../components/StatusDot'
 
+const hubHost = new URL(WS_URL.replace('ws://', 'http://').replace('wss://', 'https://')).host
+
 export function ButtonPage() {
   const { config, status, listenerConnected, triggerKey } = useSocket('button_ui')
+  const [copied, setCopied] = useState(false)
 
   const handleTrigger = useCallback((id: string) => {
     triggerKey(id)
   }, [triggerKey])
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(hubHost).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }, [])
 
   const buttons = config ? Object.entries(config.buttons) : []
 
@@ -31,6 +41,22 @@ export function ButtonPage() {
             <span className={`w-2 h-2 rounded-full ${listenerConnected ? 'bg-success' : 'bg-white/20 animate-pulse'}`} />
             {listenerConnected ? 'Listener Connected' : 'Listener Disconnected'}
           </div>
+
+          <div className="w-px h-4 bg-surface-border" />
+
+          <button
+            onClick={handleCopy}
+            title="Copy hub address for Listener setup"
+            className="flex items-center gap-1.5 text-xs font-mono text-white/30 hover:text-white/60 transition-colors"
+          >
+            {copied
+              ? <><Check size={11} className="text-success" /><span className="text-success">Copied!</span></>
+              : <><span>{hubHost}</span><Copy size={11} /></>
+            }
+          </button>
+
+          <div className="w-px h-4 bg-surface-border" />
+
           <StatusDot status={status} />
           <Link
             to="/admin"

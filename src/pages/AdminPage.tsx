@@ -36,8 +36,12 @@ import {
   Lock,
   Mic,
   Zap,
+  Unplug,
+  Copy,
+  Check,
   type LucideIcon,
 } from 'lucide-react'
+import { clearHubAddress, resolveWsUrl } from '../lib/hubStore'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -211,8 +215,18 @@ function DraggableHotkey({
 
 // ── AdminPage ─────────────────────────────────────────────────────────────────
 
+const hubHost = new URL(resolveWsUrl().replace('ws://', 'http://').replace('wss://', 'https://')).host
+
 export function AdminPage() {
   const { config, status, listenerConnected, updateAllButtons } = useSocket('admin')
+
+  const [copied, setCopied] = useState(false)
+  const handleCopyHub = useCallback(() => {
+    navigator.clipboard.writeText(hubHost).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }, [])
 
   // Pages
   const [pages, setPages] = useState<Page[]>([])
@@ -521,6 +535,34 @@ export function AdminPage() {
             <div className="flex items-center gap-2">
               {hubBadge}
               {listenerBadge}
+              <Separator orientation="vertical" className="h-5 mx-1" />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handleCopyHub}
+                    className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors px-1"
+                  >
+                    {copied
+                      ? <><Check size={11} className="text-green-500" /><span className="text-green-500">Copied!</span></>
+                      : <><span>{hubHost}</span><Copy size={11} /></>
+                    }
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Copy hub address for Listener setup</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => { clearHubAddress(); window.location.reload() }}
+                  >
+                    <Unplug size={13} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Change hub address</TooltipContent>
+              </Tooltip>
               <Separator orientation="vertical" className="h-5 mx-1" />
               <Button
                 size="sm"
